@@ -1,3 +1,4 @@
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Array(ExprArray),
     Assign(ExprAssign),
@@ -5,6 +6,7 @@ pub enum Expr {
     Binary(ExprBinary),
     Block(ExprBlock),
     Break(ExprBreak),
+    Call(ExprCall),
     Cast(ExprCast),
     Closure(ExprClosure),
     Continue(ExprContinue),
@@ -26,10 +28,12 @@ pub enum Expr {
     Tuple(ExprTuple),
     Type(ExprType),
     Unary(ExprUnary),
+    Variable(ExprVariable),
     While(ExprWhile),
     Yield(ExprYield),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum BinOp {
     Add,
     Sub,
@@ -61,6 +65,7 @@ pub enum BinOp {
     ShrEq,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Type {
     Array,
     BareFn,
@@ -80,11 +85,13 @@ pub enum Type {
 }
 
 /// A slice literal expression: `[a, b, c, d]`.
+#[derive(Debug, PartialEq)]
 pub struct ExprArray {
     pub elems: Vec<Box<Expr>>,
 }
 
 /// An assignment expression: `a = compute()`.
+#[derive(Debug, PartialEq)]
 pub struct ExprAssign {
     pub left: Box<Expr>,
     pub right: Box<Expr>,
@@ -93,6 +100,7 @@ pub struct ExprAssign {
 /// A compound assignment expression: `counter += 1`.
 ///
 /// *This type is available only if Syn is built with the `"full"` feature.*
+#[derive(Debug, PartialEq)]
 pub struct ExprAssignOp {
     pub left: Box<Expr>,
     pub op: BinOp,
@@ -100,6 +108,7 @@ pub struct ExprAssignOp {
 }
 
 /// A binary operation: `a + b`, `a * b`.
+#[derive(Debug, PartialEq)]
 pub struct ExprBinary {
     pub left: Box<Expr>,
     pub op: BinOp,
@@ -107,24 +116,35 @@ pub struct ExprBinary {
 }
 
 /// A blocked scope: `{ ... }`.
+#[derive(Debug, PartialEq)]
 pub struct ExprBlock {
     pub block: Vec<Box<Expr>>,
 }
 
 /// A `break`, with an optional label to break and an optional
 /// expression.
+#[derive(Debug, PartialEq)]
 pub struct ExprBreak {
     // pub label: Option<Lifetime>,
     pub expr: Option<Box<Expr>>,
 }
 
+// A Function call `example_func(a,b)`
+#[derive(Debug, PartialEq)]
+pub struct ExprCall {
+    pub args: Vec<Expr>,
+    pub func: String,
+}
+
 /// A cast expression: `foo as f64`.
+#[derive(Debug, PartialEq)]
 pub struct ExprCast {
     pub expr: Box<Expr>,
     pub ty: Box<Type>,
 }
 
 /// A closure expression: `|a, b| a + b`.
+#[derive(Debug, PartialEq)]
 pub struct ExprClosure {
     pub movability: bool,
     pub inputs: Vec<Box<Expr>>,
@@ -133,12 +153,14 @@ pub struct ExprClosure {
 }
 
 /// A `continue`, with an optional label.
+#[derive(Debug, PartialEq)]
 pub struct ExprContinue; //{
                          // pub continue_token: Token![continue],
                          // pub label: Option<Lifetime>,
                          // }
 
 /// A for loop: `for pat in expr { ... }`.
+#[derive(Debug, PartialEq)]
 pub struct ExprForLoop {
     pub pat: Box<Expr>,
     pub expr: Box<Expr>,
@@ -160,6 +182,7 @@ pub struct ExprForLoop {
 ///
 /// The `else` branch expression may only be an `If` or `Block`
 /// expression, not any of the other types of expression.
+#[derive(Debug, PartialEq)]
 pub struct ExprIf {
     pub cond: Box<Expr>,
     pub then_branch: Vec<Box<Expr>>,
@@ -167,18 +190,21 @@ pub struct ExprIf {
 }
 
 /// A square bracketed indexing expression: `vector[2]`.
+#[derive(Debug, PartialEq)]
 pub struct ExprIndex {
     pub expr: Box<Expr>,
     pub index: Box<Expr>,
 }
 
 /// A `let` guard: `let Some(x) = opt`.
+#[derive(Debug, PartialEq)]
 pub struct ExprLet {
     pub pat: Box<Expr>,
     pub expr: Box<Expr>,
 }
 
 /// A literal in place of an expression: `1`, `"foo"`.
+#[derive(Debug, PartialEq)]
 pub struct ExprLit {
     pub lit: String,
 }
@@ -186,22 +212,26 @@ pub struct ExprLit {
 /// Conditionless loop: `loop { ... }`.
 ///
 /// *This type is available only if Syn is built with the `"full"` feature.*
+#[derive(Debug, PartialEq)]
 pub struct ExprLoop {
     pub body: Vec<Box<Expr>>,
 }
 
 /// A `match` expression: `match n { Some(n) => {}, None => {} }`.
+#[derive(Debug, PartialEq)]
 pub struct ExprMatch {
     pub expr: Box<Expr>,
     pub arms: Vec<Arm>,
 }
 
 /// A parenthesized expression: `(a + b)`.
+#[derive(Debug, PartialEq)]
 pub struct ExprParen {
     pub expr: Box<Expr>,
 }
 
 /// A range expression: `1..2`, `1..`, `..2`, `1..=2`, `..=2`.
+#[derive(Debug, PartialEq)]
 pub struct ExprRange {
     pub from: Option<Box<Expr>>,
     pub limits: RangeLimits,
@@ -209,18 +239,21 @@ pub struct ExprRange {
 }
 
 /// A referencing operation: `&a` or `&mut a`.
+#[derive(Debug, PartialEq)]
 pub struct ExprReference {
     pub mutability: bool,
     pub expr: Box<Expr>,
 }
 
 /// An array literal constructed from one repeated element: `[0u8; N]`.
+#[derive(Debug, PartialEq)]
 pub struct ExprRepeat {
     pub expr: Box<Expr>,
     pub len: Box<Expr>,
 }
 
 /// A `return`, with an optional value to be returned.
+#[derive(Debug, PartialEq)]
 pub struct ExprReturn {
     pub expr: Option<Box<Expr>>,
 }
@@ -229,6 +262,7 @@ pub struct ExprReturn {
 ///
 /// The `rest` provides the value of the remaining fields as in `S { a:
 /// 1, b: 1, ..rest }`.
+#[derive(Debug, PartialEq)]
 pub struct ExprStruct {
     pub path: String,
     pub fields: Vec<FieldValue>,
@@ -237,26 +271,31 @@ pub struct ExprStruct {
 }
 
 /// A try-expression: `expr?`.
+#[derive(Debug, PartialEq)]
 pub struct ExprTry {
     pub expr: Box<Expr>,
 }
 
 /// A try block: `try { ... }`.
+#[derive(Debug, PartialEq)]
 pub struct ExprTryBlock {
     pub block: Vec<Box<Expr>>,
 }
 
 /// A tuple expression: `(a, b, c, d)`.
+#[derive(Debug, PartialEq)]
 pub struct ExprTuple {
     pub elems: Vec<Box<Expr>>,
 }
 
 /// A type ascription expression: `foo: f64`.
+#[derive(Debug, PartialEq)]
 pub struct ExprType {
     pub expr: Box<Expr>,
     pub ty: Box<Type>,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum UnOp {
     Deref,
     Not,
@@ -264,18 +303,21 @@ pub enum UnOp {
 }
 
 /// A unary operation: `!x`, `*x`.
+#[derive(Debug, PartialEq)]
 pub struct ExprUnary {
     pub op: UnOp,
     pub expr: Box<Expr>,
 }
 
 /// A while loop: `while expr { ... }`.
+#[derive(Debug, PartialEq)]
 pub struct ExprWhile {
     pub cond: Box<Expr>,
     pub body: Vec<Box<Expr>>,
 }
 
 /// A yield expression: `yield expr`.
+#[derive(Debug, PartialEq)]
 pub struct ExprYield {
     pub expr: Option<Box<Expr>>,
 }
@@ -342,6 +384,7 @@ pub struct ExprYield {
 // }
 
 /// An individual generic argument to a method, like `T`.
+#[derive(Debug, PartialEq)]
 pub enum GenericMethodArgument {
     /// A type argument.
     Type(Type),
@@ -353,6 +396,7 @@ pub enum GenericMethodArgument {
 }
 
 /// A field-value pair in a struct literal.
+#[derive(Debug, PartialEq)]
 pub struct FieldValue {
     /// Attributes tagged on the field.
 
@@ -385,6 +429,7 @@ pub struct FieldValue {
 /// #   false
 /// # }
 /// ```
+#[derive(Debug, PartialEq)]
 pub struct Arm {
     pub pat: Box<Expr>,
     pub body: Box<Expr>,
@@ -393,9 +438,15 @@ pub struct Arm {
 /// Limit types of a range, inclusive or exclusive.
 ///
 /// *This type is available only if Syn is built with the `"full"` feature.*
+#[derive(Debug, PartialEq)]
 pub enum RangeLimits {
     /// Inclusive at the beginning, exclusive at the end.
     HalfOpen, //..
     /// Inclusive at the beginning and end.
     Closed, // ..=
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ExprVariable {
+    pub inner: String
 }
