@@ -87,7 +87,7 @@ pub enum Type {
 /// A slice literal expression: `[a, b, c, d]`.
 #[derive(Debug, PartialEq)]
 pub struct ExprArray {
-    pub elems: Vec<Box<Expr>>,
+    pub elems: Vec<Expr>,
 }
 
 /// An assignment expression: `a = compute()`.
