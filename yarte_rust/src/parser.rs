@@ -65,32 +65,76 @@ impl<'a> Default for ParserSink<'a> {
     }
 }
 
-fn eat_array_expr(group: &Vec<Token>) -> Result<Expr, ()> {
-    // [ lit1 ] or [ lit1, lit2, ..., litN ]
-    if group.len() < 3 { return Err(()) }
-    match (&group[0], &group[group.len()-1]) {
-        (Token::OpenGroup(Delimiter::Bracket), Token::OpenGroup(Delimiter::Bracket)) => (),
-        _ => return Err(())
-    }
-    let mut expr_array = ExprArray {elems: Vec::new()};
-    if group.len() > 3 {
-        for x in (2..(group.len()-3)).step_by(2) {
-            // TODO: Change Ident for expression (try_eat_expr)
-            match &group[x] {
-                Token::Ident(i) => { expr_array.elems.push(Expr::Variable(ExprVariable { inner: i.inner.to_string() })); },
-                Token::Literal(l) => {  expr_array.elems.push(Expr::Lit(ExprLit { lit: l.inner.to_string() } ));},
-                _ => return Err(()),
-            }
-            // Checl Expr is followed by `,` 
-            if let Token::Punct(p) = &group[x+1] {
-                match p.ch {
-                    ',' => (),
-                    _ => return Err(())
+macro_rules! read_until_comma_or_end {
+    ($group:ident, $s: literal, $end_del: path, $array:  expr)=> {
+        let mut start = $s;
+        for mut end in start..$group.len() {
+            match &$group[end] {
+                Token::Punct(p) => {
+                    match p.ch {
+                        ',' => {
+                            if end-start == 1 {
+                                match &$group[start] {
+                                    Token::Ident(i) => {
+                                        $array.push(Expr::Variable(ExprVariable { inner: i.inner.to_string() }));
+                                        start = end+1;
+                                        end = start; // For will increment one more
+                                        continue;
+                                    },
+                                    _ => continue,
+                                }
+                            } 
+                            if let Ok(expr) = try_eat_expr(&$group[start..end].to_vec()) {
+                                $array.push(expr);
+                                start = end+1;
+                                end = start; // For will increment one more
+                            } else { continue }
+                        },
+                        _ => continue,
+                    }
+                },
+                Token::CloseGroup($end_del) => {
+                    if end-start == 1 {
+                        match &$group[start] {
+                            Token::Ident(i) => {
+                                $array.push(Expr::Variable(ExprVariable { inner: i.inner.to_string() }));
+                                start = end+1;
+                                end = start; // For will increment one more
+                                continue;
+                            },
+                            Token::Literal(l) => {
+                                $array.push(Expr::Lit(ExprLit { lit: l.inner.to_string() }));
+                                start = end+1;
+                                end = start; // For will increment one more
+                                continue;
+                            },
+                            _ => continue,
+                        }
+                    } 
+                    if let Ok(expr) = try_eat_expr(&$group[start..end].to_vec()) {
+                        $array.push(expr);
+                        start = end+1;
+                        end = start + 1;
+                    } else { continue }
                 }
-            } else {
-                return Err(())
+                _ => continue,
             }
         }
+    };
+}
+
+fn eat_array_expr(group: &Vec<Token>) -> Result<Expr, ()> {
+    // [ lit1 ] or [ lit1, lit2, ..., litN ]
+
+    if group.len() < 3 { return Err(()) }
+    match (&group[0], &group[group.len()-1]) {
+        (Token::OpenGroup(Delimiter::Bracket), Token::CloseGroup(Delimiter::Bracket)) => (),
+        _ => return Err(())
+    }
+    // println!("GROUP {:?}: {:?}", group.len(), group);
+    let mut expr_array = ExprArray {elems: Vec::new()};
+    if group.len() > 2 {
+        read_until_comma_or_end!(group, 1, Delimiter::Bracket, expr_array.elems);
     }
     Ok(Expr::Array(expr_array))
 }
@@ -100,7 +144,9 @@ fn eat_assign_expr(group: &Vec<Token>) -> Result<Expr,()> {
     if group.len() < 3 { return Err(())}
     // let mut left: Option<Expr> = None;
     let left = match (&group[0], &group[1]) {
+        // TODO: use read_ident to check is not a reserved word
         (Token::Ident(i), Token::Punct(p)) => {
+            // println!("C {:?}. {:?}", group, i.inner);
             if p.ch == '=' {
                 Expr::Variable(ExprVariable { inner: i.inner.to_string() })
             } else {
@@ -130,43 +176,13 @@ fn eat_call_expr(group: &Vec<Token>) -> Result<Expr,()> {
     }else{
         return Err(())
     }
-    match group[1] {
-        Token::OpenGroup(Delimiter::Parenthesis) => (),
-        _ => return Err(())
-    }
-    match group[group.len()-1] {
-        Token::CloseGroup(Delimiter::Parenthesis) => (),
+    match (&group[1], &group[group.len()-1]) {
+        (Token::OpenGroup(Delimiter::Parenthesis), Token::CloseGroup(Delimiter::Parenthesis)) => (),
         _ => return Err(())
     }
     // Check pattern: expr1 punc.ch=="," .....
-    if group.len() > 4 { // TODO: Remove this control is already passed by first `if` 
-        for x in (2..(group.len()-3)).step_by(2) {
-            // TODO: Change Ident for expression (try_eat_expr)
-            if let Token::Ident(i) = &group[x] {
-                call_expr.args.push(Expr::Variable(ExprVariable { inner: i.inner.to_string() })) 
-            } else {
-                return Err(())
-            }
-            // Checl Expr is followed by `,` 
-            if let Token::Punct(p) = &group[x+1] {
-                match p.ch {
-                    ',' => (),
-                    _ => return Err(())
-                }
-            } else {
-                return Err(())
-            }
-        }
-    }
-    
-    // Check last arg
-    if group.len() > 3 {
-        // TODO: Change Ident for expression (try_eat_expr)
-        if let Token::Ident(i) = &group[group.len()-2] {
-           call_expr.args.push(Expr::Variable(ExprVariable { inner: i.inner.to_string() })) 
-        } else {
-            return Err(())
-        }
+    if group.len() > 3 { // TODO: Remove this control is already passed by first `if` 
+        read_until_comma_or_end!(group, 2, Delimiter::Parenthesis, call_expr.args);
     }
 
     Ok(Expr::Call(call_expr))
@@ -201,7 +217,7 @@ impl<'a> Sink<'a> for ParserSink<'a> {
             return Ok(State::Stop)
         }
         self.stack_token.push(Token::CloseGroup(del));
-
+        
         if let Ok(e) = try_eat_expr(&self.stack_token) {
             self.stack.push(e);
             self.stack_token = Vec::new();
@@ -268,6 +284,8 @@ mod tests {
         }));
         let res = parse(cursor).unwrap();
         for (i, r) in res.iter().enumerate() {
+            println!("Parsed: {:?}", r);
+            println!("Should be: {:?}", func_res[i]);
             assert_eq!(r, &func_res[i])
         }
 
@@ -283,6 +301,8 @@ mod tests {
         }));
         let res = parse(cursor).unwrap();
         for (i, r) in res.iter().enumerate() {
+            println!("Parsed: {:?}", r);
+            println!("Should be: {:?}", func_res[i]);
             assert_eq!(r, &func_res[i])
         }
 
@@ -300,6 +320,8 @@ mod tests {
         }));
         let res = parse(cursor).unwrap();
         for (i, r) in res.iter().enumerate() {
+            println!("Parsed: {:?}", r);
+            println!("Should be: {:?}", func_res[i]);
             assert_eq!(r, &func_res[i])
         }
     }
@@ -314,13 +336,13 @@ mod tests {
         arr_res.push(Expr::Array(ExprArray{
             elems: vec![
                 Expr::Variable(ExprVariable{inner: "a".to_string()}),
-                Expr::Lit(ExprLit {lit: "b".to_string()})
+                Expr::Lit(ExprLit {lit: "'b'".to_string()})
             ]
         }));
         let res = parse(cursor).unwrap();
         for (i, r) in res.iter().enumerate() {
-            println!("A. {:?}", r);
-            println!("B. {:?}", arr_res[i]);
+            println!("Parsed: {:?}", r);
+            println!("Should be: {:?}", arr_res[i]);
             assert_eq!(r, &arr_res[i])
         }
     }
@@ -338,8 +360,37 @@ mod tests {
         }));
         let res = parse(cursor).unwrap();
         for (i, r) in res.iter().enumerate() {
-            println!("A. {:?}", r);
-            println!("B. {:?}", assign_res[i]);
+            println!("Parsed: {:?}", r);
+            println!("Should be: {:?}", assign_res[i]);
+            assert_eq!(r, &assign_res[i])
+        }
+
+        // Combine assign array and call
+        let cursor = Cursor {
+            rest: "a = compute([b,'b'])",
+            off: 0
+        };
+        let mut assign_res = Vec::new();
+        assign_res.push(Expr::Assign(ExprAssign {
+            left: Box::new(Expr::Variable(ExprVariable{ inner: "a".to_string() })),
+            right: Box::new(Expr::Call(ExprCall {
+                args: vec![
+                    Expr::Array(ExprArray{
+                        elems: vec![
+                            Expr::Variable(ExprVariable{inner:"b".to_string()}),
+                            Expr::Lit(ExprLit{lit:"'b'".to_string()})
+                        ]
+                    })
+                ],
+                func: "compute".to_string()
+            })),
+        }));
+        println!("-----------------------");
+        let res = parse(cursor).unwrap();
+        println!("Length {:?}", res.len());
+        for (i, r) in res.iter().enumerate() {
+            println!("Parsed: {:?}", r);
+            println!("Should be: {:?}", assign_res[i]);
             assert_eq!(r, &assign_res[i])
         }
     }
