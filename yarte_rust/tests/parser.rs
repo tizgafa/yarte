@@ -128,3 +128,51 @@ fn test_assign_expr() {
         assert_eq!(r, &assign_res[i])
     }
 }
+
+#[test]
+fn test_bin_expr() {
+    let cursor = Cursor {
+        rest: "a + b;",
+        off: 0
+    };
+    let mut bin_res = Vec::new();
+    bin_res.push(Expr::Binary(ExprBinary {
+        left: Box::new(Expr::Variable(ExprVariable { inner: "a".to_string() })),
+        op: BinOp::Add,
+        right: Box::new(Expr::Variable(ExprVariable { inner: "b".to_string() }))
+     }));
+    let res = parse(cursor).unwrap();
+    assert_eq!(res.len() , 1);
+    for (i, r) in res.iter().enumerate() {
+        // eprintln!("Parsed: {:?}", r);
+        // eprintln!("Should be: {:?}", bin_res[i]);
+        assert_eq!(r, &bin_res[i])
+    }
+    let cursor = Cursor {
+        rest: "a + compute([b,'b']);",
+        off: 0
+    };
+    let mut bin_res = Vec::new();
+    bin_res.push(Expr::Binary(ExprBinary {
+        left: Box::new(Expr::Variable(ExprVariable { inner: "a".to_string() })),
+        op: BinOp::Add,
+        right: Box::new(Expr::Call(ExprCall {
+            args: vec![
+                Expr::Array(ExprArray{
+                    elems: vec![
+                        Expr::Variable(ExprVariable{inner:"b".to_string()}),
+                        Expr::Lit(ExprLit{lit:"'b'".to_string()})
+                    ]
+                })
+            ],
+            func: "compute".to_string()
+        })),
+     }));
+    let res = parse(cursor).unwrap();
+    assert_eq!(res.len() , 1);
+    for (i, r) in res.iter().enumerate() {
+        eprintln!("Parsed: {:?}", r);
+        eprintln!("Should be: {:?}", bin_res[i]);
+        assert_eq!(r, &bin_res[i])
+    }
+}

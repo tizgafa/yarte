@@ -1,4 +1,3 @@
-
 use crate::parser::Token;
 use crate::expr::*;
 use crate::token_types::*;
@@ -10,9 +9,69 @@ pub fn try_eat_expr(group: & [Token]) -> Result<Expr,()> {
         return Ok(expr)
     } else if let Ok(expr) = eat_assign_expr(group) {
         return Ok(expr)
+    } else if let Ok(expr) = eat_binary_expr(group) {
+        return Ok(expr)
     } else {
         return Err(())
     } 
+}
+
+fn eat_operator(ops: & [Token]) -> Result<(BinOp, usize), ()> {
+    let (binop, len) = match &ops[0] {
+        Token::Punct(Punct{ch: '+'}) => match &ops[1] {
+            Token::Punct(Punct{ch: '='}) => (BinOp::AddEq, 2),
+            _ => (BinOp::Add, 1)
+        }
+        Token::Punct(Punct{ch: '-'}) => match &ops[1] {
+            Token::Punct(Punct{ch: '='}) => (BinOp::SubEq, 2),
+            _ => (BinOp::Sub, 1)
+        }
+        Token::Punct(Punct{ch: '*'}) => match &ops[1] {
+            Token::Punct(Punct{ch: '='}) => (BinOp::MulEq, 2),
+            _ => (BinOp::Mul, 1)
+        }
+        Token::Punct(Punct{ch: '/'}) => match &ops[1] {
+            Token::Punct(Punct{ch: '='}) => (BinOp::DivEq, 2),
+            _ => (BinOp::Div, 1)
+        }
+        Token::Punct(Punct{ch: '%'}) => match &ops[1] {
+            Token::Punct(Punct{ch: '='}) => (BinOp::RemEq, 2),
+            _ => (BinOp::Rem, 1)
+        }
+        Token::Punct(Punct{ch: '&'}) => match &ops[1] {
+            Token::Punct(Punct{ch: '='}) => (BinOp::BitAndEq, 2),
+            Token::Punct(Punct{ch: '&'}) => (BinOp::And, 2),
+            _ => (BinOp::BitAnd, 1)
+        }
+        Token::Punct(Punct{ch: '^'}) => match &ops[1] {
+            Token::Punct(Punct{ch: '='}) => (BinOp::BitXorEq, 2),
+            _ => (BinOp::BitXor, 1)
+        }
+        Token::Punct(Punct{ch: '<'}) => match &ops[1] {
+            Token::Punct(Punct{ch: '<'}) => match &ops[2] {
+                Token::Punct(Punct{ch: '='}) => (BinOp::ShlEq, 3),
+                _ => (BinOp::Shl, 2)
+            }
+            Token::Punct(Punct{ch: '='}) => (BinOp::Le, 2),
+            _ => (BinOp::Lt, 1)
+        }
+        Token::Punct(Punct{ch: '>'}) => match &ops[1] {
+            Token::Punct(Punct{ch: '>'}) => match &ops[2] {
+                Token::Punct(Punct{ch: '='}) => (BinOp::ShrEq, 3),
+                _ => (BinOp::Shr, 2)
+            }
+            Token::Punct(Punct{ch: '='}) => (BinOp::Ge, 2),
+            _ => (BinOp::Gt, 1)
+        }
+
+        // Token::Punct(Punct{ch: '!'}) => match &ops[1] {
+        //     Token::Punct(Punct{ch: '='}) => (BinOp::Ne, 2),
+        //     _ => return Err(())
+        // }
+        // Token::Punct(Punct{ch: '='}) => (BinOp::Eq, 1),
+        _ => return Err(())
+    };
+    return Ok((binop, len))
 }
 
 macro_rules! read_until_comma_or_end {
@@ -136,4 +195,74 @@ fn eat_call_expr(group: &[Token]) -> Result<Expr,()> {
     }
 
     Ok(Expr::Call(call_expr))
+}
+
+fn eat_binary_expr(group: &[Token]) -> Result<Expr, ()> {
+    // a + b
+    let mut left = None;
+    let mut op = None;
+    let mut end_left = 0;
+    if group.len() < 3 { return Err(())}
+    for end in 1..group.len() {
+        if let Ok((o, len)) = eat_operator(&group[end..]) {
+            if end == 1 {
+                match &group[0] {
+                    Token::Ident(i) => {
+                        left = Some(Expr::Variable(ExprVariable { inner: i.inner.to_string() }));
+                        op = Some(o);
+                        end_left = end + len;
+                        break;
+                    },
+                    Token::Literal(l) => {
+                        left = Some(Expr::Lit(ExprLit { lit: l.inner.to_string() }));
+                        op = Some(o);
+                        end_left = end + len;
+                        break;
+                    },
+                    _ => continue,
+                }
+            }
+            match try_eat_expr(&group[..end]) {
+                Ok(expr) => {
+                    left = Some(expr);
+                    op = Some(o);
+                    end_left = end + len;
+                    break;
+                }
+                _ => continue
+            }
+        }
+    }
+
+    if left==None || op == None {return Err(())}
+
+    for end in end_left..group.len() {
+        println!("JJJJ\n\t {:?}", group[end_left]);
+        if let Token::Punct(Punct { ch:';' }) = &group[end]{
+            if end - end_left == 1 {
+                match &group[end_left] {
+                    Token::Ident(i) => return Ok(Expr::Binary(ExprBinary{
+                        left: Box::new(left.unwrap()),
+                        op: op.unwrap(),
+                        right: Box::new(Expr::Variable(ExprVariable { inner: i.inner.to_string() }))
+                    })),
+                    Token::Literal(l) => return Ok(Expr::Binary(ExprBinary{
+                        left: Box::new(left.unwrap()),
+                        op: op.unwrap(),
+                        right: Box::new(Expr::Lit(ExprLit { lit: l.inner.to_string() }))
+                    })),
+                    _ => return Err(())
+                }
+            } else{
+                if let Ok(expr) = try_eat_expr(&group[end_left..]) {
+                    return Ok(Expr::Binary(ExprBinary{
+                        left: Box::new(left.unwrap()),
+                        op: op.unwrap(),
+                        right: Box::new(expr)
+                    }))
+                }else{ return Err(())}
+            }
+        }
+    }
+    return Err(())
 }
