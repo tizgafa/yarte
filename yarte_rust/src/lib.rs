@@ -5,3 +5,4 @@ pub mod literals;
 pub mod parser;
 pub mod sink;
 pub mod token_types;
+pub mod eater;

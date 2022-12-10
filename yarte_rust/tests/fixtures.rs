@@ -62,16 +62,16 @@ macro_rules! features {
         fn $name() {
             for entry in glob($path).expect("Failed to read glob pattern") {
                 let name = entry.expect("File name");
-                eprintln!("\n{:?}\n", name);
+                // eprintln!("\n{:?}\n", name);
                 let src = read_to_string(name).expect("Valid file");
                 let fixtures: Vec<Fixture> =
                     ron::from_str(&src).expect("Valid Fixtures");
 
-                for (i, Fixture { src, exp }) in fixtures.into_iter().enumerate() {
+                for (_, Fixture { src, exp }) in fixtures.into_iter().enumerate() {
                     let cur = Cursor{ rest: src, off: 0 };
                     let mut vs = VecSink(Vec::new());
                     let _ = token_stream(cur, &mut vs).unwrap();
-                    eprintln!("{:2}:\nBASE {:?} \nEXPR {:?}", i, exp, vs.0);
+                    // eprintln!("{:2}:\nBASE {:?} \nEXPR {:?}", i, exp, vs.0);
                     assert_eq!(vs.0, exp);
                 }
             }
